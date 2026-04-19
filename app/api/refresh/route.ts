@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 export async function POST() {
   try {
     const cookieStore = await cookies();
-    const cookieToken = cookieStore.has("token");
+    const cookieToken = cookieStore.has("refreshToken");
 
     if (!cookieToken) {
       return NextResponse.json(
@@ -15,7 +15,15 @@ export async function POST() {
       );
     }
 
-    const token = cookieStore.get("token")?.value!;
+    const token = cookieStore.get("refreshToken")?.value;
+
+    if (!token) {
+      return NextResponse.json(
+        { error: "Refresh token not found" },
+        { status: 401 },
+      );
+    }
+
     const refreshSecret = new TextEncoder().encode(
       process.env.NEXT_LOGIN_REFRESH_SECRET!,
     );
@@ -39,7 +47,7 @@ export async function POST() {
       accessToken,
       message: "Access token Refreshed",
     });
-  } catch (err) {
+  } catch {
     return NextResponse.json(
       { error: "Invalid refresh token" },
       { status: 401 },
