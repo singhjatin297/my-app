@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     const isProd = process.env.NODE_ENV === "production";
 
     cookieStore.set({
-      name: "token",
+      name: "refreshToken",
       value: refreshToken,
       httpOnly: true,
       path: "/",

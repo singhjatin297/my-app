@@ -19,7 +19,7 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       if (!isActive) return;
 
       if (!accessToken) {
-        router.replace("/");
+        router.replace("/login");
         return;
       }
 
