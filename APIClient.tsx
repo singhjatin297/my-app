@@ -1,9 +1,11 @@
+import { useCallback } from "react";
+
 import { useAuth } from "./context/auth";
 
 export const useApiClient = () => {
   const { getAccessToken, logout } = useAuth();
 
-  const client = async (url: string, options: RequestInit = {}) => {
+  const client = useCallback(async (url: string, options: RequestInit = {}) => {
     try {
       const accessToken = await getAccessToken();
 
@@ -30,6 +32,6 @@ export const useApiClient = () => {
     } catch (err) {
       throw new Error(`Error: ${err}`);
     }
-  };
+  }, [getAccessToken, logout]);
   return client;
 };

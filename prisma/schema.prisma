@@ -1,0 +1,34 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model users {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email       String    @unique
+  password    String
+  tasks       tasks[]
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+enum Status {
+  STARTED
+  IN_PROGRESS @map("IN PROGRESS")
+  FINISHED
+}
+
+model tasks {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  authorEmail String
+  author      users @relation(fields: [authorEmail], references: [email])
+  title       String
+  description String
+  status      Status
+  isDeleted   Boolean
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+}
