@@ -3,11 +3,12 @@ import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
 
 import { createClient } from "@/utils/supabase/server";
+import { prisma } from "@/lib/prisma";
 
-type TaskStatus = "todo" | "in-progress" | "done";
+type TaskStatus = "STARTED" | "IN_PROGRESS" | "FINISHED";
 
 type CreateTaskBody = {
-  title?: unknown;
+  title?: string;
   status?: unknown;
 };
 
@@ -17,7 +18,7 @@ type UpdateTaskBody = {
   status?: unknown;
 };
 
-const VALID_STATUSES: TaskStatus[] = ["todo", "in-progress", "done"];
+const VALID_STATUSES: TaskStatus[] = ["STARTED", "IN_PROGRESS", "FINISHED"];
 
 const isTaskStatus = (value: unknown): value is TaskStatus =>
   typeof value === "string" && VALID_STATUSES.includes(value as TaskStatus);
@@ -63,19 +64,27 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const supabase = await getSupabase();
-    const { data, error } = await supabase
-      .from("tasks")
-      .select("*")
-      .eq("user_email", userEmail)
-      .order("created_at", { ascending: false });
+    const existingTask = await prisma.tasks.findFirst({
+      where: {
+        authorEmail: userEmail,
+        isDeleted: false,
+      },
+    });
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (!existingTask) {
+      return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ data }, { status: 200 });
-  } catch {
+    const tasks = await prisma.tasks.findMany({
+      where: {
+        authorEmail: userEmail,
+        isDeleted: false,
+      },
+    });
+
+    return NextResponse.json({ tasks }, { status: 200 });
+  } catch (err) {
+    console.log("Error getting tasks: ", err);
     return NextResponse.json(
       { error: "Failed to fetch tasks" },
       { status: 500 },
@@ -94,33 +103,25 @@ export async function POST(request: Request) {
     const body = await parseJson<CreateTaskBody>(request);
 
     if (!body || typeof body.title !== "string" || body.title.trim() === "") {
-      return NextResponse.json(
-        { error: "title is required" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "title is required" }, { status: 400 });
     }
 
     if (body.status !== undefined && !isTaskStatus(body.status)) {
       return NextResponse.json(
-        { error: "status must be todo, in-progress, or done" },
+        { error: "status must be STARTED, IN_PROGRESS, or FINISHED" },
         { status: 400 },
       );
     }
 
-    const supabase = await getSupabase();
-    const { data, error } = await supabase
-      .from("tasks")
-      .insert({
-        user_email: userEmail,
-        title: body.title.trim(),
-        status: body.status ?? "todo",
-      })
-      .select()
-      .single();
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const data = await prisma.tasks.create({
+      data: {
+        title: body.title,
+        authorEmail: userEmail,
+        description: "New Task",
+        status: body.status!,
+        isDeleted: false,
+      },
+    });
 
     return NextResponse.json({ data }, { status: 201 });
   } catch {
@@ -145,7 +146,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "id is required" }, { status: 400 });
     }
 
-    const updates: Record<string, string> = {};
+    const updates: { title?: string; status?: TaskStatus } = {};
 
     if (body.title !== undefined) {
       if (typeof body.title !== "string" || body.title.trim() === "") {
@@ -161,7 +162,7 @@ export async function PATCH(request: Request) {
     if (body.status !== undefined) {
       if (!isTaskStatus(body.status)) {
         return NextResponse.json(
-          { error: "status must be todo, in-progress, or done" },
+          { error: "status must be STARTED, IN_PROGRESS, or FINISHED" },
           { status: 400 },
         );
       }
@@ -176,18 +177,22 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const supabase = await getSupabase();
-    const { data, error } = await supabase
-      .from("tasks")
-      .update(updates)
-      .eq("id", body.id)
-      .eq("user_email", userEmail)
-      .select()
-      .single();
+    const existingTask = await prisma.tasks.findFirst({
+      where: {
+        id: body.id,
+        authorEmail: userEmail,
+        isDeleted: false,
+      },
+    });
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (!existingTask) {
+      return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
+
+    const data = await prisma.tasks.update({
+      where: { id: body.id },
+      data: updates,
+    });
 
     return NextResponse.json({ data }, { status: 200 });
   } catch {
@@ -212,16 +217,24 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "id is required" }, { status: 400 });
     }
 
-    const supabase = await getSupabase();
-    const { error } = await supabase
-      .from("tasks")
-      .delete()
-      .eq("id", body.id)
-      .eq("user_email", userEmail);
+    const existingTask = await prisma.tasks.findFirst({
+      where: {
+        id: body.id,
+        authorEmail: userEmail,
+        isDeleted: false,
+      },
+    });
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (!existingTask) {
+      return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
+
+    await prisma.tasks.update({
+      where: { id: body.id },
+      data: {
+        isDeleted: true,
+      },
+    });
 
     return NextResponse.json(
       { message: "Task deleted successfully" },

@@ -2,14 +2,28 @@ import { NextRequest, NextResponse } from "next/server";
 import { SignJWT } from "jose";
 import { userCreds } from "@/userData";
 import { cookies } from "next/headers";
+import { prisma } from "@/lib/prisma";
+
+interface userCredentials {
+  email: string;
+  password: string;
+}
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const cookieStore = await cookies();
-    const { email, password } = body;
+    const { email, password }: userCredentials = body;
 
-    const user = userCreds.find((item) => item.email === email);
+    // const user = userCreds.find((item) => item.email === email);
+    const user = await prisma.users.findUnique({
+      where: {
+        email: email,
+      },
+    });
+
+    console.log("USER LOGGED IN : ", user);
+
     if (!user) {
       return NextResponse.json({ error: "No User Found" }, { status: 404 });
     }

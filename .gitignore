@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+/.pnpm-store
 /.pnp
 .pnp.*
 .yarn/*
@@ -19,6 +20,7 @@
 
 # production
 /build
+/dist
 
 # misc
 .DS_Store
@@ -43,3 +45,6 @@ next-env.d.ts
 # local mock/auth data
 mockData.ts
 userData.ts
+script.ts
+
+/generated/prisma

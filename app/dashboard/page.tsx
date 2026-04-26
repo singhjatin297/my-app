@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 
 import { useApiClient } from "@/APIClient";
 import TaskCard from "@/components/TaskCard";
+import { useAuth } from "@/context/auth";
 
-type TaskStatus = "todo" | "in-progress" | "done";
+type TaskStatus = "STARTED" | "IN_PROGRESS" | "COMPLETED";
 
 type Task = {
   id: string;
@@ -22,7 +24,7 @@ type TaskForm = {
 const defaultForm: TaskForm = {
   id: "",
   title: "",
-  status: "todo",
+  status: "STARTED",
 };
 
 const getErrorMessage = (error: unknown, fallback: string) => {
@@ -31,7 +33,7 @@ const getErrorMessage = (error: unknown, fallback: string) => {
 };
 
 const isStatus = (value: string): value is TaskStatus => {
-  return value === "todo" || value === "in-progress" || value === "done";
+  return value === "STARTED" || value === "IN_PROGRESS" || value === "FINISHED";
 };
 
 const isObject = (value: unknown): value is Record<string, unknown> => {
@@ -47,14 +49,19 @@ const readError = (payload: unknown) => {
 };
 
 const readTasks = (payload: unknown) => {
-  if (!isObject(payload) || !Array.isArray(payload.data)) {
+  if (!isObject(payload) || !Array.isArray(payload.tasks)) {
     return [];
   }
 
-  const { data } = payload;
+  const { tasks: data } = payload;
 
-  return data.filter((item): item is Task => {
-    if (!isObject(item)) return false;
+  console.log("Inside Read Tasks", data);
+
+  return data?.filter((item): item is Task => {
+    if (!isObject(item)) {
+      debugger;
+      return false;
+    }
 
     return (
       typeof item.id === "string" &&
@@ -89,6 +96,8 @@ const readTask = (payload: unknown) => {
 
 export default function Dashboard() {
   const apiClient = useApiClient();
+  const { logout } = useAuth();
+  const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -97,6 +106,7 @@ export default function Dashboard() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [form, setForm] = useState(defaultForm);
   const [isPending, startTransition] = useTransition();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     const loadTasks = async () => {
@@ -117,6 +127,8 @@ export default function Dashboard() {
         if (message) {
           throw new Error(message);
         }
+
+        console.log("TASKS Data", readTasks(payload));
 
         setTasks(readTasks(payload));
       } catch (fetchError) {
@@ -234,6 +246,19 @@ export default function Dashboard() {
     });
   };
 
+  const handleLogout = async () => {
+    try {
+      setIsLoggingOut(true);
+      setError(null);
+      await logout();
+      router.push("/login");
+    } catch (logoutError) {
+      setError(getErrorMessage(logoutError, "Failed to log out"));
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
+
   return (
     <section className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -244,13 +269,23 @@ export default function Dashboard() {
           </p>
         </div>
 
-        <button
-          className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
-          onClick={openCreateModal}
-          type="button"
-        >
-          Add Task
-        </button>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <button
+            className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={isLoggingOut}
+            onClick={handleLogout}
+            type="button"
+          >
+            {isLoggingOut ? "Logging Out..." : "Logout"}
+          </button>
+          <button
+            className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
+            onClick={openCreateModal}
+            type="button"
+          >
+            Add Task
+          </button>
+        </div>
       </div>
 
       {error ? (
@@ -333,14 +368,14 @@ export default function Dashboard() {
                       ...current,
                       status: isStatus(event.target.value)
                         ? event.target.value
-                        : "todo",
+                        : "STARTED",
                     }))
                   }
                   value={form.status}
                 >
-                  <option value="todo">Todo</option>
-                  <option value="in-progress">In Progress</option>
-                  <option value="done">Done</option>
+                  <option value="STARTED">STARTED</option>
+                  <option value="IN_PROGRESS">IN PROGRESS</option>
+                  <option value="COMPLETED">COMPLETED</option>
                 </select>
               </div>
 
